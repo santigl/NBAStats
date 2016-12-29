@@ -162,7 +162,7 @@ class NBAStats(callbacks.Plugin):
     def _gameLeadersToString(self, leaders, home):
         """Given a list of triples containing a type of stat., a list of player
         ids and a value, return the information in a printable form."""
-        res = []
+        stats = []
         for (field, players, value) in leaders:
             field_name = self._shortCategoryName(field)
             player_list = ", ".join([self._playerShortName(p) \
@@ -171,9 +171,9 @@ class NBAStats(callbacks.Plugin):
             stat_string = self._highlightHomeTeam(stat_value) if home \
                           else self._highlightAwayTeam(stat_value)
 
-            res.append("{} {}".format(player_list, stat_string))
+            stats.append("{} {}".format(player_list, stat_string))
 
-        return " | ".join(res)
+        return " | ".join(stats)
 
     def _printableStat(self, category, value):
         """Given a category identifier, and a corresponding value for it,
@@ -282,7 +282,7 @@ class NBAStats(callbacks.Plugin):
         return ircutils.mircColor(s, 'green')
 
     def _blue(self, s):
-        return ircutils.mircColor(s, 'blue')
+        return ircutils.mircColor(s, 'light blue')
 
     def _orange(self, s):
         return ircutils.mircColor(s, 'orange')
