@@ -62,8 +62,7 @@ class NBAStatsGetter():
         """Return a list with tuples (stat. category, player_id,
         value of the stat) representing the current team leaders for each stat
         category."""
-        if not self._isTriCodeValid(team):
-            raise ValueError("Invalid team value")
+        team = self._parseTeamTricode(team)
 
         team_id = self._teamID(team)
         leaders_json = self._fetchTeamLeaders(team_id)
@@ -82,10 +81,7 @@ class NBAStatsGetter():
 
     def gameLeaders(self, team):
         """Get the game leaders for a team that has a game in progress."""
-        team = team.upper()
-
-        if not self._isTriCodeValid(team):
-            raise ValueError("Invalid team value")
+        team = self._parseTeamTricode(team)
 
         team_id = self._teamID(team)
         game = self._findGameInProgress(team_id)
@@ -100,6 +96,29 @@ class NBAStatsGetter():
 
         return leaders
 
+    def gameTextNugget(self, team):
+        """Find the 'text nugget' (a string containing the description of a
+        highlight of the game) for a game that involves the given team."""
+        team = team.upper()
+        self._validateTeamTricode(team)
+
+        team_id = self._teamID(team)
+        game = self._findGameInProgress(team_id)
+
+        if game is None:
+            raise ValueError("{} is not currently playing".format(team))
+
+        return game['text_nugget']
+
+    def _parseTeamTricode(self, team):
+        """If the given string is a valid team tricode, normalize it to upper
+        case. Otherwise throw a ValueError exception."""
+        t = team.upper()
+        if not self._isTriCodeValid(t):
+            raise ValueError("Invalid team value")
+        else:
+            return t
+
     def _extractLeadersFromBoxScore(self, json):
         game_data = json['basicGameData']
         stats = json['stats']
@@ -112,7 +131,6 @@ class NBAStatsGetter():
         home_team_name = game_data['hTeam']['triCode']
         leaders['home']['team_name'] = home_team_name
         leaders['away']['team_name'] = away_team_name
-
 
         home_leaders = self._extractGameLeadersStats(stats['hTeam']['leaders'])
         away_leaders = self._extractGameLeadersStats(stats['vTeam']['leaders'])
@@ -206,7 +224,8 @@ class NBAStatsGetter():
                          'away_team_id': g['vTeam']['teamId'],
                          'start_date': g['startDateEastern'],
                          'period': g['period'],
-                         'ended': (g['statusNum'] == 3)
+                         'ended': (g['statusNum'] == 3),
+                         'text_nugget': g['nugget']['text']
                         }
             games.append(game_info)
         return games
