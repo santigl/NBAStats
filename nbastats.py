@@ -28,11 +28,12 @@ import requests
 class NBAStatsGetter():
     """Get stats from NBA.com's JSON API."""
     def __init__(self):
-        self._API_SERVER = "http://data.nba.net"
+        self._API_SERVER = "https://data.nba.net"
 
         self._cache_control_adapter = CacheControlAdapter(heuristic=LastModified())
         self._requests_session = requests.Session()
         self._requests_session.mount('http://', CacheControlAdapter())
+        self._requests_session.mount('https://', CacheControlAdapter())
 
         self._TEAM_TRICODES = ['CHA', 'ATL', 'IND', 'MEM', 'DET', 'UTA', 'CHI',
                                'TOR', 'CLE', 'OKC', 'DAL', 'MIN', 'BOS', 'SAS',
