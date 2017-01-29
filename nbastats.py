@@ -48,7 +48,8 @@ class NBAStatsGetter():
         # Cached dictionaries. Saving these copies avoids having to re-parse
         # JSONs when they are returned from the HTTP cache.
         self._person_ids = None
-        self._team_ids = None
+        self._team_ids_to_tricodes = None
+        self._team_tricodes_to_ids = None
 
 ############################
 ############################
@@ -109,6 +110,12 @@ class NBAStatsGetter():
             raise ValueError("{} is not currently playing".format(team))
 
         return game['text_nugget']
+
+    def conferenceStandings(self):
+        """Find and return the standings for each conference.
+        Returns a dictionary of lists of tricodes."""
+        standings_json = self._getJSON(self._conferenceStandingsURL())
+        return self._extractConferenceStandings(standings_json)
 
     def _parseTeamTricode(self, team):
         """If the given string is a valid team tricode, normalize it to upper
@@ -230,6 +237,18 @@ class NBAStatsGetter():
             games.append(game_info)
         return games
 
+    def _extractConferenceStandings(self, json):
+        """Extract the standings for each conference.
+        Return a dictionary ('east', west') -> [tricodes]."""
+        json = json['league']['standard']['conference']
+
+        standings = dict()
+        for conference in json:
+            standings[conference] = []
+            for team in json[conference]:
+                standings[conference].append(self._teamTricode(team['teamId']))
+        return standings
+
 ############################
 # Conversion to/from IDs
 ############################
@@ -238,28 +257,48 @@ class NBAStatsGetter():
         names = self._fetchPersonIDdict()
         return names[person_id]
 
-    def _teamID(self, team):
+    def _teamID(self, team_tricode):
         """Given a tricode, return the team id corresponding to that team."""
-        team_ids = self._fetchTeamToIDdict()
-        return team_ids[team]
+        team_ids = self._tricodeToTeamIDdict()
+        return team_ids[team_tricode]
 
-    def _fetchTeamToIDdict(self):
-        """TeamID -> Tricode"""
+    def _teamTricode(self, team_id):
+        """Given a team id, return the tricode corresponding to that team."""
+        team_tricodes = self._teamIDtoTricodeDict()
+        return team_tricodes[team_id]
+
+    def _updateTeamDictionaries(self):
+        """Fetch (TeamId -> Tricode) and (Tricode -> TeamId) dictionaries,
+        but just if it is necessary (checks cache first)."""
         (json, from_cache) = self._getJSON(self._teamListURL(),
                                            return_cache_status=True)
 
-        # We have an parsed valid copy, return that:
-        if from_cache and self._team_ids is not None:
-            return self._team_ids
+        # We have a parsed valid copy, return that:
+        if from_cache and self._team_tricodes_to_ids is not None and \
+           self._team_ids_to_tricodes is not None:
+            return self._team_tricodes_to_ids
 
-        # (Re-) creating dictionary from JSON:
-        team_ids = dict()
+        # (Re-)creating dictionaries from JSON:
+        tricode_to_ids = dict()
+        ids_to_tricodes = dict()
+
         for team in json['league']['standard']:
             if team['isNBAFranchise']:
-                team_ids[team['tricode']] = team['teamId']
+                tricode_to_ids[team['tricode']] = team['teamId']
+                ids_to_tricodes[team['teamId']] = team['tricode']
 
-        self._team_ids = team_ids
-        return team_ids
+        self._team_tricodes_to_ids = tricode_to_ids
+        self._team_ids_to_tricodes = ids_to_tricodes
+
+    def _tricodeToTeamIDdict(self):
+        """Return a dictionary containing teams' (tricode -> id) mappings."""
+        self._updateTeamDictionaries()
+        return self._team_tricodes_to_ids
+
+    def _teamIDtoTricodeDict(self):
+        """Return a dictionary containing teams' (id -> tricode) mappings."""
+        self._updateTeamDictionaries()
+        return self._team_ids_to_tricodes
 
     def _fetchPersonIDdict(self):
         """PersonID -> (FirstName, LastName)"""
@@ -313,6 +352,10 @@ class NBAStatsGetter():
         json_path = self._15MinMaxAgeLink(self._todayJSON()['links']['boxscore'])
         json_path = self._doubleBracketToSingle(json_path).format(gameDate=starting_date, gameId=game_id)
         return (self._API_SERVER + json_path)
+
+    def _conferenceStandingsURL(self):
+        return (self._API_SERVER +
+                self._15MinMaxAgeLink(self._todayJSON()['links']['leagueConfStandings']))
 
 ############################
 # API entry point
@@ -379,6 +422,8 @@ class NBAStatsGetter():
 def test():
     n = NBAStatsGetter()
     print('LAL record:', n.teamRecord('LAL'))
+    print('-'*60)
+    print('Standings:', n.conferenceStandings())
     print('-'*60)
     print('LAL leaders:', n.teamLeaders('LAL'))
     print('-'*60)

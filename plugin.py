@@ -46,7 +46,8 @@ class NBAStats(callbacks.Plugin):
 # Public commands
 ############################
     def teamLeaders(self, irc, msg, args, team):
-        """TTT (team tri-code)
+        """<TTT> (team tri-code)
+
         Get the team's current leaders."""
         team = team.upper()
         if not self._isTriCodeValid(team):
@@ -63,6 +64,7 @@ class NBAStats(callbacks.Plugin):
 
     def teamRecord(self, irc, msg, args, team):
         """<TTT> (team tri-code)
+
         Get the team's record for this season."""
         team = team.upper()
         if not self._isTriCodeValid(team):
@@ -79,6 +81,7 @@ class NBAStats(callbacks.Plugin):
 
     def gameLeaders(self, irc, msg, args, team):
         """<TTT> (team tri-code)
+
         Get the game leaders for a team that has a game in progress."""
         team = team.upper()
         if not self._isTriCodeValid(team):
@@ -106,6 +109,27 @@ class NBAStats(callbacks.Plugin):
         irc.reply(title + leaders_string)
 
     gameleaders = wrap(gameLeaders, [('text')])
+
+    def standings(self, irc, msg, args):
+        """
+
+        Get the conference standings."""
+        standings = self._stats_getter.conferenceStandings()
+
+        ranking = dict()
+        for conference in standings.keys():
+            ranking[conference] = []
+            # Position and team strings:
+            for (position, team) in list(enumerate(standings[conference],
+                                                   start=1)):
+                item = '{}) {}'.format(self._formatConferenceRank(position),
+                                       team)
+                ranking[conference].append(item)
+
+        irc.reply('{}: {}'.format(self._bold('WEST'),
+                                  '  '.join(ranking['west'])))
+        irc.reply('{}: {}'.format(self._bold('EAST'),
+                                  '  '.join(ranking['east'])))
 
 ############################
 ############################
@@ -244,6 +268,11 @@ class NBAStats(callbacks.Plugin):
 
     def _formatDivisionRank(self, rank):
         return self._numberToOrdinal(rank)
+
+    def _formatConferenceRank(self, rank):
+        if rank <= 8:
+            return self._bold(rank)
+        return rank
 
     def _numberToOrdinal(self, number):
         """Return the ordinal representation of the number. Only works for
