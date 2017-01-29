@@ -73,7 +73,7 @@ class NBAStats(callbacks.Plugin):
 
         team_record = self._stats_getter.teamRecord(team)
 
-        title = "{} ~ ".format(team)
+        title = "{} ~".format(team)
         irc.reply("{} {}".format(self._bold(title),
                                  self._teamRecordToString(team_record)))
 
@@ -122,7 +122,7 @@ class NBAStats(callbacks.Plugin):
             # Position and team strings:
             for (position, team) in list(enumerate(standings[conference],
                                                    start=1)):
-                item = '{}) {}'.format(self._formatConferenceRank(position),
+                item = '{}) {}'.format(self._formatConferenceRankBold(position),
                                        team)
                 ranking[conference].append(item)
 
@@ -147,16 +147,20 @@ class NBAStats(callbacks.Plugin):
         home = self._formatWinsLosses(record['home'])
         away = self._formatWinsLosses(record['away'])
         last_ten = self._formatWinsLosses(record['last_ten'])
-
+        games_behind = record['games_behind']
+        win_percentage = record['win_percentage']
         conference_rank = self._formatConferenceRank(record['conference_rank'])
         division_rank = self._formatDivisionRank(record['division_rank'])
 
         streak = self._formatStreak(record['streak'][0], record['streak'][1])
 
-        return ("{} | {} Conf. | {} Div. | {} Home | {} Away | "
-                "{} Last 10 | {} Streak".format(self._bold(total),
+        return ('{} ({}) | {:g} GB | {} Conf. | {} Div. | {} Home | {} Away | '
+                '{} Last 10 | {} Streak'.format(self._bold(total),
+                                                win_percentage,
+                                                games_behind,
                                                 conference_rank, division_rank,
-                                                home, away, last_ten, streak))
+                                                home, away,
+                                                last_ten, streak))
 
     def _teamLeadersToString(self, team_leaders):
         leaders = []
@@ -269,7 +273,7 @@ class NBAStats(callbacks.Plugin):
     def _formatDivisionRank(self, rank):
         return self._numberToOrdinal(rank)
 
-    def _formatConferenceRank(self, rank):
+    def _formatConferenceRankBold(self, rank):
         if rank <= 8:
             return self._bold(rank)
         return rank

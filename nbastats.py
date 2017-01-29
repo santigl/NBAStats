@@ -169,6 +169,8 @@ class NBAStatsGetter():
         team_record['conference_rank'] = int(e['confRank'])
         team_record['division_rank'] = int(e['divRank'])
         team_record['streak'] = (int(e['streak']), e['isWinStreak'])
+        team_record['games_behind'] = float(e['gamesBehind'])
+        team_record['win_percentage'] = float(e['winPct'])
         return team_record
 
     def _extractTeamLeaders(self, json):
