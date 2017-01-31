@@ -46,6 +46,13 @@ class NBAStatsGetter():
                                  'bpg', 'spg',
                                  'tpg', 'pfpg']
 
+        self._CONFERENCES = ['west', 'east']
+
+        self._EASTERN_DIVISIONS = ['southeast', 'atlantic', 'central']
+        self._WESTERN_DIVISIONS = ['southwest', 'pacific', 'northwest']
+        self._DIVISIONS = {'west': self._WESTERN_DIVISIONS,
+                           'east': self._EASTERN_DIVISIONS}
+
         # Cached dictionaries. Saving these copies avoids having to re-parse
         # JSONs when they are returned from the HTTP cache.
         self._person_ids = None
@@ -59,6 +66,19 @@ class NBAStatsGetter():
 
     def statCategories(self):
         return self._STAT_CATEGORIES
+
+    def divisions(self, conference=None):
+        if conference is None:
+            return self._WESTERN_DIVISIONS + self._EASTERN_DIVISIONS
+        if conference.lower() == 'west':
+            return self._WESTERN_DIVISIONS
+        if conference.lower() == 'east':
+            return self._EASTERN_DIVISIONS
+
+        raise ValueError("Invalid conference")
+
+    def conferences(self):
+        return self._CONFERENCES
 
     def teamLeaders(self, team):
         """Return a list with tuples (stat. category, player_id,
@@ -114,9 +134,24 @@ class NBAStatsGetter():
 
     def conferenceStandings(self):
         """Find and return the standings for each conference.
-        Returns a dictionary of lists of tricodes."""
+        Returns a list of dictionaries in ranking order."""
         standings_json = self._getJSON(self._conferenceStandingsURL())
         return self._extractConferenceStandings(standings_json)
+
+    def divisionStandings(self, division_filter=None):
+        """Find and return the standings for each conference.
+        Returns a list of dictionaries in ranking order."""
+        standings_json = self._getJSON(self._divisionStandingsURL())
+        standings = self._extractDivisionStandings(standings_json)
+
+        if division_filter is None:
+            return standings
+
+        for conference in standings.keys():
+            for division in standings[conference].keys():
+                if division_filter == division:
+                    return standings[conference][division]
+        raise ValueError("Invalid division")
 
     def _parseTeamTricode(self, team):
         """If the given string is a valid team tricode, normalize it to upper
@@ -241,16 +276,36 @@ class NBAStatsGetter():
         return games
 
     def _extractConferenceStandings(self, json):
-        """Extract the standings for each conference.
-        Return a dictionary ('east', west') -> [tricodes]."""
+        """Extract the standings for each conference."""
         json = json['league']['standard']['conference']
 
         standings = dict()
         for conference in json:
             standings[conference] = []
             for team in json[conference]:
-                standings[conference].append(self._teamTricode(team['teamId']))
+                team_standing = {'name': self._teamTricode(team['teamId']),
+                                 'games_behind': float(team['gamesBehind']),
+                                 'rank': int(team['confRank'])}
+                standings[conference].append(team_standing)
         return standings
+
+    def _extractDivisionStandings(self, json):
+        """Extract the standings for divisions in each conference."""
+        json = json['league']['standard']['conference']
+
+        standings = dict()
+
+        for conference in json:
+            standings[conference] = dict()
+            for division in json[conference]:
+                standings[conference][division] = []
+                for team in json[conference][division]:
+                    team_standing = {'name': self._teamTricode(team['teamId']),
+                                     'games_behind': float(team['divGamesBehind']),
+                                     'rank': int(team['divRank'])}
+                    standings[conference][division].append(team_standing)
+        return standings
+
 
 ############################
 # Conversion to/from IDs
@@ -359,6 +414,12 @@ class NBAStatsGetter():
     def _conferenceStandingsURL(self):
         return (self._API_SERVER +
                 self._15MinMaxAgeLink(self._todayJSON()['links']['leagueConfStandings']))
+
+    def _divisionStandingsURL(self):
+        return (self._API_SERVER +
+                self._15MinMaxAgeLink(self._todayJSON()['links']['leagueDivStandings']))
+
+
 
 ############################
 # API entry point

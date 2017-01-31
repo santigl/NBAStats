@@ -58,7 +58,7 @@ class NBAStats(callbacks.Plugin):
         title = self._bold("{} Leaders ~ ".format(team))
 
         irc.reply("{} {}".format(title,
-                                   self._teamLeadersToString(team_leaders)))
+                                 self._teamLeadersToString(team_leaders)))
 
     leaders = wrap(teamLeaders, [('text').upper()])
 
@@ -110,31 +110,52 @@ class NBAStats(callbacks.Plugin):
 
     gameleaders = wrap(gameLeaders, [('text')])
 
-    def standings(self, irc, msg, args):
-        """
+    def standings(self, irc, msg, args, category):
+        """[<conference/division>]
 
-        Get the conference standings."""
-        standings = self._stats_getter.conferenceStandings()
+        Get standings for a given conference or division.
+        If none is given, return standings for east and west."""
 
-        ranking = dict()
-        for conference in standings.keys():
-            ranking[conference] = []
-            # Position and team strings:
-            for (position, team) in list(enumerate(standings[conference],
-                                                   start=1)):
-                item = '{}) {}'.format(self._formatConferenceRankBold(position),
-                                       team)
-                ranking[conference].append(item)
+        conference = category.lower() if category is not None else category
 
-        irc.reply('{}: {}'.format(self._bold('WEST'),
-                                  '  '.join(ranking['west'])))
-        irc.reply('{}: {}'.format(self._bold('EAST'),
-                                  '  '.join(ranking['east'])))
+        # No argument or argument is a conference:
+        if conference is None or conference in ['east', 'west']:
+            standings = self._stats_getter.conferenceStandings()
+
+            display_west = conference is None or conference == 'west'
+            display_east = conference is None or conference == 'east'
+
+            if display_west:
+                standings_west = self._printableStandings(standings['west'])
+                irc.reply('{}: {}'.format(self._bold('WEST'), standings_west))
+            if display_east:
+                standings_east = self._printableStandings(standings['east'])
+                irc.reply('{}: {}'.format(self._bold('EAST'), standings_east))
+            return
+
+        # Argument is a division:
+        division = category.lower()
+        if division not in self._stats_getter.divisions():
+            valid_arguments = ', '.join(self._stats_getter.conferences() +
+                                        self._stats_getter.divisions())
+            irc.error('I could not find that conference or division. '
+                      'Valid values are: {}.'.format(valid_arguments))
+            return
+
+        division_standings = self._stats_getter.divisionStandings(division)
+        irc.reply('{}: {}'.format(self._bold(division.upper()),
+                                  self._printableStandings(division_standings)))
+
+    standings = wrap(standings, [optional('text')])
 
 ############################
 ############################
     def _isTriCodeValid(self, ttt):
         return (ttt.upper() in self._stats_getter.teams())
+
+    def _isDivisionValid(self, division):
+        return (division.lower() in self._stats_getter.divisions())
+
 
 ############################
 # Formatting helpers
@@ -203,6 +224,17 @@ class NBAStats(callbacks.Plugin):
 
         return " | ".join(stats)
 
+    def _printableStandings(self, standings):
+        items = []
+        for team in standings:
+            team_name = self._bold(team['name'])
+            games_behind_string = self._formatGamesBehind(-1*team['games_behind'])
+
+            item = '{}.{} ({})'.format(team['rank'], team_name, games_behind_string)
+            items.append(item)
+
+        return ', '.join(items)
+
     def _printableStat(self, category, value):
         """Given a category identifier, and a corresponding value for it,
         return the printable format of type and value of the stat."""
@@ -270,13 +302,18 @@ class NBAStats(callbacks.Plugin):
             return self._green(rank_string)
         return self._red(rank_string)
 
-    def _formatDivisionRank(self, rank):
-        return self._numberToOrdinal(rank)
-
     def _formatConferenceRankBold(self, rank):
         if rank <= 8:
             return self._bold(rank)
         return rank
+
+    def _formatDivisionRank(self, rank):
+        return self._numberToOrdinal(rank)
+
+    def _formatGamesBehind(self, games_behind):
+        if abs(games_behind) > 0:
+            return '{:>4}'.format(games_behind)
+        return '--'
 
     def _numberToOrdinal(self, number):
         """Return the ordinal representation of the number. Only works for
