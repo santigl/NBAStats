@@ -352,13 +352,13 @@ class NBAStats(callbacks.Plugin):
         return ircutils.mircColor(s, 'green')
 
     def _blue(self, s):
-        return ircutils.mircColor(s, 'light blue')
+        return ircutils.mircColor(s, 'light blue', 'black')
 
     def _orange(self, s):
         return ircutils.mircColor(s, 'orange')
 
     def _yellow(self, s):
-        return ircutils.mircColor(s, 'yellow')
+        return ircutils.mircColor(s, 'yellow', 'black')
 
     def _purple(self, s):
         return ircutils.mircColor(s, 'purple')
