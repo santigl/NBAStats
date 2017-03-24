@@ -395,43 +395,44 @@ class NBAStatsGetter():
 ############################
     # Time critical:
     def _todayEntryPointURL(self):
-        return self._API_SERVER + "/15m/prod/v1/today.json"
+        return self._addBaseURL("/15m/prod/v1/today.json")
 
     def _scoreboardURL(self):
-        return (self._API_SERVER +
-                self._todayJSON()['links']['todayScoreboard'])
+        return self._addBaseURL(self._todayJSONLink('todayScoreboard'))
 
     # Non time-critical (cache for 15 minutes):
     def _playerListURL(self):
-        return (self._API_SERVER +
-                self._15MinMaxAgeLink(self._todayJSON()['links']['leagueRosterPlayers']))
+        path = self._15MinMaxAgeLink(self._todayJSONLink('leagueRosterPlayers'))
+        return self._addBaseURL(path)
 
     def _teamListURL(self):
-        return (self._API_SERVER +
-                self._15MinMaxAgeLink(self._todayJSON()['links']['teams']))
+        path = self._15MinMaxAgeLink(self._todayJSONLink('teams'))
+        return self._addBaseURL(path)
 
     def _teamLeadersURL(self, team_id):
-        team_leaders_URL = self._todayJSON()['links']['teamLeaders']
+        team_leaders_URL = self._todayJSONLink('teamLeaders')
         team_leaders_URL = self._doubleBracketToSingle(team_leaders_URL)
-        return (self._API_SERVER +
-                self._15MinMaxAgeLink(team_leaders_URL.format(teamUrlCode=team_id)))
+        team_leaders_URL = team_leaders_URL.format(teamUrlCode=team_id)
+        path = self._15MinMaxAgeLink(team_leaders_URL)
+        return self._addBaseURL(path)
 
     def _standingsURL(self):
-        return (self._API_SERVER +
-                self._15MinMaxAgeLink(self._todayJSON()['links']['leagueUngroupedStandings']))
+        path = self._15MinMaxAgeLink(self._todayJSONLink('leagueUngroupedStandings'))
+        return self._addBaseURL(path)
 
     def _scoreBoxURL(self, starting_date, game_id):
-        json_path = self._15MinMaxAgeLink(self._todayJSON()['links']['boxscore'])
-        json_path = self._doubleBracketToSingle(json_path).format(gameDate=starting_date, gameId=game_id)
-        return (self._API_SERVER + json_path)
+        json_path = self._15MinMaxAgeLink(self._todayJSONLink('boxscore'))
+        json_path = self._doubleBracketToSingle(json_path)
+        json_path = json_path.format(gameDate=starting_date, gameId=game_id)
+        return self._addBaseURL(json_path)
 
     def _conferenceStandingsURL(self):
-        return (self._API_SERVER +
-                self._15MinMaxAgeLink(self._todayJSON()['links']['leagueConfStandings']))
+        path = self._15MinMaxAgeLink(self._todayJSONLink('leagueConfStandings'))
+        return self._addBaseURL(path)
 
     def _divisionStandingsURL(self):
-        return (self._API_SERVER +
-                self._15MinMaxAgeLink(self._todayJSON()['links']['leagueDivStandings']))
+        path = self._15MinMaxAgeLink(self._todayJSONLink('leagueDivStandings'))
+        return self._addBaseURL(path)
 
 
 ############################
@@ -492,6 +493,12 @@ class NBAStatsGetter():
     def _doubleBracketToSingle(self, string):
         s = string.replace('{{', '{')
         return s.replace('}}', '}')
+
+    def _addBaseURL(self, path):
+        return self._API_SERVER + path
+
+    def _todayJSONLink(self, endpoint):
+        return self._todayJSON()['links'][endpoint]
 
     def _15MinMaxAgeLink(self, link):
         return link.replace('10s', '15m')
