@@ -136,8 +136,8 @@ class NBAStats(callbacks.Plugin):
         # Argument is a division:
         division = category.lower()
         if division not in self._stats_getter.divisions():
-            valid_arguments = ', '.join(self._stats_getter.conferences() +
-                                        self._stats_getter.divisions())
+            valid_arguments = ', '.join(self._stats_getter.conferences()
+                                        | self._stats_getter.divisions())
             irc.error('I could not find that conference or division. '
                       'Valid values are: {}.'.format(valid_arguments))
             return
@@ -173,7 +173,7 @@ class NBAStats(callbacks.Plugin):
         conference_rank = self._formatConferenceRank(record['conference_rank'])
         division_rank = self._formatDivisionRank(record['division_rank'])
 
-        streak = self._formatStreak(record['streak'][0], record['streak'][1])
+        streak = self._formatStreak(record['streak'])
 
         return ('{} ({}) | {:g} GB | {} Conf. | {} Div. | {} Home | {} Away | '
                 '{} Last 10 | {} Streak'.format(self._bold(total),
@@ -185,11 +185,11 @@ class NBAStats(callbacks.Plugin):
 
     def _teamLeadersToString(self, team_leaders):
         leaders = []
-        for (category, name_tuple, value) in team_leaders:
-            player_name = self._playerShortName(name_tuple)
-            stat = self._printableStat(category, value)
+        for leader in team_leaders:
+            name = self._playerShortName(leader.player_name)
+            stat = self._printableStat(leader.category, leader.value)
 
-            leaders.append("{} {}".format(player_name, stat))
+            leaders.append("{} {}".format(name, stat))
         return " | ".join(leaders)
 
     def _printableTeamLeaders(self, leaders):
@@ -209,16 +209,17 @@ class NBAStats(callbacks.Plugin):
                                         home_leaders)
 
     def _gameLeadersToString(self, leaders, home):
-        """Given a list of triples containing a type of stat., a list of player
-        ids and a value, return the information in a printable form."""
+        """Given a list of triples containing a type of stat.,
+        a list of player ids and a value, return the information in
+        a printable form."""
         stats = []
-        for (field, players, value) in leaders:
-            field_name = self._shortCategoryName(field)
+        for entry in leaders:
+            category_name = self._shortCategoryName(entry.category)
             player_list = ", ".join([self._playerShortName(p) \
-                                     for p in players])
-            stat_value = "{} {}".format(value, field_name)
-            stat_string = self._highlightHomeTeam(stat_value) if home \
-                          else self._highlightAwayTeam(stat_value)
+                                     for p in entry.players])
+            stat_value = "{} {}".format(entry.value, category_name)
+            stat_string = self._highlightHomeTeam(entry.value) if home \
+                          else self._highlightAwayTeam(entry.value)
 
             stats.append("{} {}".format(player_list, stat_string))
 
@@ -236,8 +237,9 @@ class NBAStats(callbacks.Plugin):
         return ', '.join(items)
 
     def _printableStat(self, category, value):
-        """Given a category identifier, and a corresponding value for it,
-        return the printable format of type and value of the stat."""
+        """Given a category identifier, and a corresponding value for
+        it, return the printable format of type and value of the stat.
+        """
         if category in ['fgp', 'ftp', 'tpp']:
             return self._blue("{} {}".format(self._decimalToPercentage(value),
                                               category.upper()))
@@ -265,18 +267,17 @@ class NBAStats(callbacks.Plugin):
         return ""
 
     def _playerShortName(self, name_tuple):
-        """ Given a tuple (FirstName, LastName), return 'I. LastName', where
-        'I' is the first name initial."""
-        first_name = name_tuple[0]
-        last_name = name_tuple[1]
-        initial = first_name[0]
+        """ Given a tuple (FirstName, LastName), return 'I. LastName',
+        where 'I' is the first name initial."""
+        initial = name_tuple.first_name[0]
+        last_name = name_tuple.last_name
         return "{}. {}".format(initial, last_name)
 
     def _formatWinsLosses(self, wins_losses_tuple):
-        """Converts a tuple (wins, losses) into a color-coded 'wins-losses'
-        string."""
-        w = wins_losses_tuple[0]
-        l = wins_losses_tuple[1]
+        """Converts a tuple (wins, losses) into a color-coded
+        'wins-losses' string."""
+        w = wins_losses_tuple.wins
+        l = wins_losses_tuple.loses
         s = "{}-{}".format(w, l)
 
         if w > l:
@@ -285,18 +286,18 @@ class NBAStats(callbacks.Plugin):
             return self._red(s)
         return self._yellow(s)
 
-    def _formatStreak(self, streak, is_win):
-        """Return the WX/LY streak representation color coded."""
-        if streak == 0:
+    def _formatStreak(self, streak):
+        """Return the 'WX' or 'LY' streak representation color coded."""
+        if streak.games == 0:
             return ""
-        if is_win:
-            return self._green("W{}".format(streak))
+        if streak.is_winning:
+            return self._green("W{}".format(streak.games))
         else:
-            return self._red("L{}".format(streak))
+            return self._red("L{}".format(streak.games))
 
     def _formatConferenceRank(self, rank):
-        """Return the rank ordinal. If the team is 8th or better (in playoffs),
-        format it  green. Otherwise, red."""
+        """Return the rank ordinal. If the team is 8th or better
+        (in playoffs), format it  green. Otherwise, red."""
         rank_string = self._numberToOrdinal(rank)
         if rank <= 8: # In the playoffs!
             return self._green(rank_string)
@@ -316,14 +317,13 @@ class NBAStats(callbacks.Plugin):
         return '--'
 
     def _numberToOrdinal(self, number):
-        """Return the ordinal representation of the number. Only works for
-        n <= 19."""
-        if number > 19:
-            return "{}".format(number)
+        """Return the ordinal representation of the number."""
+        if 10 <= number <= 20: # (The [10, 20] range is exceptional.)
+            suffix = 'th'
+        else:
+            suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(number % 10, 'th')
 
-        suffixes = ["th", "st", "nd", "rd", ] + ["th"] * 16
-        suffixed_num = str(number) + suffixes[number % 100]
-        return suffixed_num
+        return "{}{}".format(number, suffix)
 
     def _decimalToPercentage(self, p):
         return "{:.1f}%".format(float(p) * 100)

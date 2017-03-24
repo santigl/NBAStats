@@ -22,6 +22,14 @@ import cachecontrol
 from cachecontrol import CacheControlAdapter
 from cachecontrol.heuristics import LastModified
 
+from collections import namedtuple
+PlayerName  = namedtuple('PlayerName', 'first_name, last_name')
+Record      = namedtuple('Record', 'wins, loses')
+Streak      = namedtuple('Streak', 'games, is_winning')
+
+PlayerStatistic = namedtuple('PlayerStatistic', 'category, player_name, value')
+LeaderStatistic = namedtuple('LeaderStatistic', 'category, players, value')
+
 import json
 import requests
 
@@ -35,26 +43,25 @@ class NBAStatsGetter():
         self._requests_session.mount('http://', CacheControlAdapter())
         self._requests_session.mount('https://', CacheControlAdapter())
 
-        self._TEAM_TRICODES = ['CHA', 'ATL', 'IND', 'MEM', 'DET', 'UTA', 'CHI',
-                               'TOR', 'CLE', 'OKC', 'DAL', 'MIN', 'BOS', 'SAS',
-                               'MIA', 'DEN', 'LAL', 'PHX', 'NOP', 'MIL', 'HOU',
-                               'NYK', 'ORL', 'SAC', 'PHI', 'BKN', 'POR', 'GSW',
-                               'LAC', 'WAS']
+        self._TEAM_TRICODES = frozenset(('CHA', 'ATL', 'IND', 'MEM', 'DET',
+                                         'UTA', 'CHI', 'TOR', 'CLE', 'OKC',
+                                         'DAL', 'MIN', 'BOS', 'SAS', 'MIA',
+                                         'DEN', 'LAL', 'PHX', 'NOP', 'MIL',
+                                         'HOU', 'NYK', 'ORL', 'SAC', 'PHI',
+                                         'BKN', 'POR', 'GSW', 'LAC', 'WAS'))
 
-        self._STAT_CATEGORIES = ['ppg', 'trpg', 'apg',
-                                 'fgp', 'ftp', 'tpp',
-                                 'bpg', 'spg',
-                                 'tpg', 'pfpg']
+        self._STAT_CATEGORIES = frozenset(('ppg', 'trpg', 'apg', 'fgp', 'ftp',
+                                           'tpp', 'bpg', 'spg', 'tpg', 'pfpg'))
 
-        self._CONFERENCES = ['west', 'east']
+        self._CONFERENCES = frozenset(('west', 'east'))
 
-        self._EASTERN_DIVISIONS = ['southeast', 'atlantic', 'central']
-        self._WESTERN_DIVISIONS = ['southwest', 'pacific', 'northwest']
+        self._EASTERN_DIVISIONS = frozenset(('southeast', 'atlantic', 'central'))
+        self._WESTERN_DIVISIONS = frozenset(('southwest', 'pacific', 'northwest'))
         self._DIVISIONS = {'west': self._WESTERN_DIVISIONS,
                            'east': self._EASTERN_DIVISIONS}
 
-        # Cached dictionaries. Saving these copies avoids having to re-parse
-        # JSONs when they are returned from the HTTP cache.
+        # Cached dictionaries. Saving these copies avoids having to
+        # re-parse JSONs when they are returned from the HTTP cache.
         self._person_ids = None
         self._team_ids_to_tricodes = None
         self._team_tricodes_to_ids = None
@@ -69,7 +76,7 @@ class NBAStatsGetter():
 
     def divisions(self, conference=None):
         if conference is None:
-            return self._WESTERN_DIVISIONS + self._EASTERN_DIVISIONS
+            return self._WESTERN_DIVISIONS | self._EASTERN_DIVISIONS
         if conference.lower() == 'west':
             return self._WESTERN_DIVISIONS
         if conference.lower() == 'east':
@@ -82,8 +89,8 @@ class NBAStatsGetter():
 
     def teamLeaders(self, team):
         """Return a list with tuples (stat. category, player_id,
-        value of the stat) representing the current team leaders for each stat
-        category."""
+        value of the stat) representing the current team leaders
+        for each stat category."""
         team = self._parseTeamTricode(team)
 
         team_id = self._teamID(team)
@@ -147,15 +154,15 @@ class NBAStatsGetter():
         if division_filter is None:
             return standings
 
-        for conference in standings.keys():
-            for division in standings[conference].keys():
+        for conference in standings:
+            for division in standings[conference]:
                 if division_filter == division:
                     return standings[conference][division]
         raise ValueError("Invalid division")
 
     def _parseTeamTricode(self, team):
-        """If the given string is a valid team tricode, normalize it to upper
-        case. Otherwise throw a ValueError exception."""
+        """If the given string is a valid team tricode, normalize
+        it to upper case. Otherwise throw a ValueError exception."""
         t = team.upper()
         if not self._isTriCodeValid(t):
             raise ValueError("Invalid team value")
@@ -190,27 +197,29 @@ class NBAStatsGetter():
                                 for p in json[category]['players']]
             category_value = json[category]['value']
 
-            leaders.append((category, category_leaders, category_value))
+            leaders.append(LeaderStatistic(category,
+                                           category_leaders,
+                                           category_value))
 
         return leaders
 
     def _extractTeamRecord(self, e):
         """Extract the relevant fields from a team's Standings JSON entry."""
         team_record = dict()
-        team_record['total'] = (int(e['win']), int(e['loss']))
-        team_record['home'] = (int(e['homeWin']), int(e['homeLoss']))
-        team_record['away'] = (int(e['awayWin']), int(e['awayLoss']))
-        team_record['last_ten'] = (int(e['lastTenWin']), int(e['lastTenLoss']))
+        team_record['total'] = Record(int(e['win']), int(e['loss']))
+        team_record['home'] = Record(int(e['homeWin']), int(e['homeLoss']))
+        team_record['away'] = Record(int(e['awayWin']), int(e['awayLoss']))
+        team_record['last_ten'] = Record(int(e['lastTenWin']),
+                                         int(e['lastTenLoss']))
         team_record['conference_rank'] = int(e['confRank'])
         team_record['division_rank'] = int(e['divRank'])
-        team_record['streak'] = (int(e['streak']), e['isWinStreak'])
+        team_record['streak'] = Streak(int(e['streak']), e['isWinStreak'])
         team_record['games_behind'] = float(e['gamesBehind'])
         team_record['win_percentage'] = float(e['winPct'])
         return team_record
 
     def _extractTeamLeaders(self, json):
-        """Returns a list of tuples: (category of statistic, (first, last),
-        stat.'s value)."""
+        """Returns a list of PlayerStatistic tuples."""
         leaders = []
 
         # Dropping the extra fields:
@@ -222,7 +231,9 @@ class NBAStatsGetter():
 
             value = field['value']
             person = field['personId']
-            leaders.append((category, self.playerFullName(person), value))
+            leaders.append(PlayerStatistic(category,
+                                           self.playerFullName(person),
+                                           value))
 
         return leaders
 
@@ -230,7 +241,8 @@ class NBAStatsGetter():
         """Search for a game with the team is currently playing."""
         games_in_progress = self._gamesInProgress()
         for game in games_in_progress:
-            if game['home_team_id'] == team_id or game['away_team_id'] == team_id:
+            if (game['home_team_id'] == team_id
+                or game['away_team_id'] == team_id):
                 return game
         return None
 
@@ -246,7 +258,7 @@ class NBAStatsGetter():
         return games
 
     def _gamesInProgress(self):
-        return (self._getGamesInProgress(self._todayGames()))
+        return self._getGamesInProgress(self._todayGames())
 
     def _isTriCodeValid(self, ttt):
         return (ttt.upper() in self._TEAM_TRICODES)
@@ -311,7 +323,7 @@ class NBAStatsGetter():
 # Conversion to/from IDs
 ############################
     def playerFullName(self, person_id):
-        """Given a person ID, return the corresponding first name."""
+        """Given a person ID, return the corresponding full name."""
         names = self._fetchPersonIDdict()
         return names[person_id]
 
@@ -349,12 +361,14 @@ class NBAStatsGetter():
         self._team_ids_to_tricodes = ids_to_tricodes
 
     def _tricodeToTeamIDdict(self):
-        """Return a dictionary containing teams' (tricode -> id) mappings."""
+        """Return a dictionary containing teams'
+        (tricode -> id) mappings."""
         self._updateTeamDictionaries()
         return self._team_tricodes_to_ids
 
     def _teamIDtoTricodeDict(self):
-        """Return a dictionary containing teams' (id -> tricode) mappings."""
+        """Return a dictionary containing teams'
+        (id -> tricode) mappings."""
         self._updateTeamDictionaries()
         return self._team_ids_to_tricodes
 
@@ -370,8 +384,8 @@ class NBAStatsGetter():
         # (Re-)creating dictionary from JSON:
         person_ids = dict()
         for player in json['league']['standard']:
-            person_ids[player['personId']] = (player['firstName'],
-                                              player['lastName'])
+            person_ids[player['personId']] = PlayerName(player['firstName'],
+                                                        player['lastName'])
 
         self._person_ids = person_ids
         return person_ids
@@ -418,7 +432,6 @@ class NBAStatsGetter():
     def _divisionStandingsURL(self):
         return (self._API_SERVER +
                 self._15MinMaxAgeLink(self._todayJSON()['links']['leagueDivStandings']))
-
 
 
 ############################
