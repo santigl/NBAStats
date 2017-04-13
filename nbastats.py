@@ -2,7 +2,7 @@
 ###
 # Python module to retrieve statistics from NBA.com using their (undocumented)
 # JSON API.
-# Copyright (c) 2016, Santiago Gil
+# Copyright (c) 2017, Santiago Gil
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -22,7 +22,9 @@ import cachecontrol
 from cachecontrol import CacheControlAdapter
 from cachecontrol.heuristics import LastModified
 
+from collections import defaultdict
 from collections import namedtuple
+
 PlayerName  = namedtuple('PlayerName', 'first_name, last_name')
 Record      = namedtuple('Record', 'wins, loses')
 Streak      = namedtuple('Streak', 'games, is_winning')
@@ -30,11 +32,17 @@ Streak      = namedtuple('Streak', 'games, is_winning')
 PlayerStatistic = namedtuple('PlayerStatistic', 'category, player_name, value')
 LeaderStatistic = namedtuple('LeaderStatistic', 'category, players, value')
 
+PlayoffMatchUp = namedtuple('PlayoffMatchUp',
+                            'top_team, top_seed, top_wins, top_is_winner,'
+                            'bottom_team, bottom_seed, bottom_wins,'
+                            'bottom_is_winner, is_completed')
+
 import json
 import requests
 
 class NBAStatsGetter():
     """Get stats from NBA.com's JSON API."""
+
     def __init__(self):
         self._API_SERVER = "https://data.nba.net"
 
@@ -82,7 +90,7 @@ class NBAStatsGetter():
         if conference.lower() == 'east':
             return self._EASTERN_DIVISIONS
 
-        raise ValueError("Invalid conference")
+        raise ValueError('Invalid conference')
 
     def conferences(self):
         return self._CONFERENCES
@@ -90,7 +98,8 @@ class NBAStatsGetter():
     def teamLeaders(self, team):
         """Return a list with tuples (stat. category, player_id,
         value of the stat) representing the current team leaders
-        for each stat category."""
+        for each stat category.
+        """
         team = self._parseTeamTricode(team)
 
         team_id = self._teamID(team)
@@ -101,7 +110,7 @@ class NBAStatsGetter():
     def teamRecord(self, team):
         """Get the team's current record information for this season."""
         if not self._isTriCodeValid(team):
-            raise ValueError("Invalid team value")
+            raise ValueError('Invalid team value')
 
         team_id = self._teamID(team)
         team_standings_entry = self._fetchTeamStandingsEntry(team_id)
@@ -109,14 +118,16 @@ class NBAStatsGetter():
         return self._extractTeamRecord(team_standings_entry)
 
     def gameLeaders(self, team):
-        """Get the game leaders for a team that has a game in progress."""
+        """Get the game leaders for a team that has a game in
+        progress.
+        """
         team = self._parseTeamTricode(team)
 
         team_id = self._teamID(team)
         game = self._findGameInProgress(team_id)
 
         if game is None:
-            raise ValueError("{} is not currently playing".format(team))
+            raise ValueError('{} is not currently playing'.format(team))
 
         box_score = self._fetchGameBoxScore(game['start_date'], game['game_id'])
         leaders = self._extractLeadersFromBoxScore(box_score)
@@ -126,8 +137,10 @@ class NBAStatsGetter():
         return leaders
 
     def gameTextNugget(self, team):
-        """Find the 'text nugget' (a string containing the description of a
-        highlight of the game) for a game that involves the given team."""
+        """Find the 'text nugget' (a string containing the description
+        of a highlight of the game) for a game that involves the
+        given team.
+        """
         team = team.upper()
         self._validateTeamTricode(team)
 
@@ -135,19 +148,21 @@ class NBAStatsGetter():
         game = self._findGameInProgress(team_id)
 
         if game is None:
-            raise ValueError("{} is not currently playing".format(team))
+            raise ValueError('{} is not currently playing'.format(team))
 
         return game['text_nugget']
 
     def conferenceStandings(self):
         """Find and return the standings for each conference.
-        Returns a list of dictionaries in ranking order."""
+        Returns a list of dictionaries in ranking order.
+        """
         standings_json = self._getJSON(self._conferenceStandingsURL())
         return self._extractConferenceStandings(standings_json)
 
     def divisionStandings(self, division_filter=None):
         """Find and return the standings for each conference.
-        Returns a list of dictionaries in ranking order."""
+        Returns a list of dictionaries in ranking order.
+        """
         standings_json = self._getJSON(self._divisionStandingsURL())
         standings = self._extractDivisionStandings(standings_json)
 
@@ -158,14 +173,88 @@ class NBAStatsGetter():
             for division in standings[conference]:
                 if division_filter == division:
                     return standings[conference][division]
-        raise ValueError("Invalid division")
+        raise ValueError('Invalid division')
+
+    def currentPlayoffRound(self):
+        """Return the number of the current playoff round (the first
+        round with games yet to be played).
+        """
+        if not self._playoffBracketEndPointExists():
+            return None
+
+        bracket_json = self._getJSON(self._playoffBracketURL())
+        return self._currentPlayoffRound(bracket_json)
+
+    def playoffMatchUps(self, round_number=None):
+        """Find and return the match-ups for a given round in the
+        playoffs. If round_number is None, returns the match-ups for
+        the current round in progress.
+        """
+        bracket_json = self._getJSON(self._playoffBracketURL())
+
+        if round_number is None:
+            round_number = self._currentPlayoffRound(bracket_json)
+
+        return self._parsePlayoffBracket(bracket_json, round_number)
+
+    def _parsePlayoffBracket(self, json, round_number):
+        return self._extractPlayoffMatchUps(json, round_number)
+
+    def _extractPlayoffMatchUps(self, json, round_number):
+        match_ups = defaultdict(list)
+
+        for entry in json['series']:
+            if entry['isScheduleAvailable'] \
+               and int(entry['roundNum']) == round_number:
+                conference = entry['confName'].lower()
+                match_ups[conference].append(self._extractPlayoffMatchUp(entry))
+
+        return match_ups
+
+    def _extractPlayoffMatchUp(self, json):
+        top_team_name = self._teamTricode(json['topRow']['teamId'])
+        top_team_seed = int(json['topRow']['seedNum'])
+        top_team_wins = int(json['topRow']['wins'])
+        top_team_is_winner = json['topRow']['isSeriesWinner']
+
+        bottom_team_name = self._teamTricode(json['bottomRow']['teamId'])
+        bottom_team_seed = int(json['bottomRow']['seedNum'])
+        bottom_team_wins = int(json['bottomRow']['wins'])
+        bottom_team_is_winner = json['bottomRow']['isSeriesWinner']
+
+
+        matchup_is_completed = json['isSeriesCompleted']
+
+        return PlayoffMatchUp(top_team_name, top_team_seed,
+                              top_team_wins, top_team_is_winner,
+                              bottom_team_name, bottom_team_seed,
+                              bottom_team_wins, bottom_team_is_winner,
+                              matchup_is_completed)
+
+    def _currentPlayoffRound(self, json):
+        games_status = defaultdict(set)
+        # Parsing the status of each game in each round:
+        for game in json['series']:
+            game_round = int(game['roundNum'])
+            games_status[game_round].add(game['isSeriesCompleted'])
+
+        rounds = sorted(games_status.keys())
+        for round_number in rounds:
+            if not all(games_status[round_number]):
+            # Some games aren't done, so the round is still in progress.
+                return round_number
+
+        # All rounds are done. Return the last one (the finals).
+        return rounds[-1]
+
 
     def _parseTeamTricode(self, team):
         """If the given string is a valid team tricode, normalize
-        it to upper case. Otherwise throw a ValueError exception."""
+        it to upper case. Otherwise throw a ValueError exception.
+        """
         t = team.upper()
         if not self._isTriCodeValid(t):
-            raise ValueError("Invalid team value")
+            raise ValueError('Invalid team value')
         else:
             return t
 
@@ -204,7 +293,9 @@ class NBAStatsGetter():
         return leaders
 
     def _extractTeamRecord(self, e):
-        """Extract the relevant fields from a team's Standings JSON entry."""
+        """Extract the relevant fields from a team's Standings
+        JSON entry.
+        """
         team_record = dict()
         team_record['total'] = Record(int(e['win']), int(e['loss']))
         team_record['home'] = Record(int(e['homeWin']), int(e['homeLoss']))
@@ -271,7 +362,8 @@ class NBAStatsGetter():
 
     def _extractGamesFromScoreboard(self, json):
         """Extract all relevant fields from NBA.com's scoreboard.json
-        and return a list of games."""
+        and return a list of games.
+        """
         games = []
         for g in json['games']:
             game_info = {'game_id': g['gameId'],
@@ -328,24 +420,29 @@ class NBAStatsGetter():
         return names[person_id]
 
     def _teamID(self, team_tricode):
-        """Given a tricode, return the team id corresponding to that team."""
+        """Given a tricode, return the team id corresponding to
+        that team.
+        """
         team_ids = self._tricodeToTeamIDdict()
         return team_ids[team_tricode]
 
     def _teamTricode(self, team_id):
-        """Given a team id, return the tricode corresponding to that team."""
+        """Given a team id, return the tricode corresponding to
+        that team.
+        """
         team_tricodes = self._teamIDtoTricodeDict()
         return team_tricodes[team_id]
 
     def _updateTeamDictionaries(self):
-        """Fetch (TeamId -> Tricode) and (Tricode -> TeamId) dictionaries,
-        but just if it is necessary (checks cache first)."""
+        """Fetch (TeamId -> Tricode) and (Tricode -> TeamId)
+        dictionaries, but just if it is necessary (checks cache first).
+        """
         (json, from_cache) = self._getJSON(self._teamListURL(),
                                            return_cache_status=True)
 
         # We have a parsed valid copy, return that:
-        if from_cache and self._team_tricodes_to_ids is not None and \
-           self._team_ids_to_tricodes is not None:
+        if from_cache and self._team_tricodes_to_ids is not None \
+           and self._team_ids_to_tricodes is not None:
             return self._team_tricodes_to_ids
 
         # (Re-)creating dictionaries from JSON:
@@ -362,13 +459,15 @@ class NBAStatsGetter():
 
     def _tricodeToTeamIDdict(self):
         """Return a dictionary containing teams'
-        (tricode -> id) mappings."""
+        (tricode -> id) mappings.
+        """
         self._updateTeamDictionaries()
         return self._team_tricodes_to_ids
 
     def _teamIDtoTricodeDict(self):
         """Return a dictionary containing teams'
-        (id -> tricode) mappings."""
+        (id -> tricode) mappings.
+        """
         self._updateTeamDictionaries()
         return self._team_ids_to_tricodes
 
@@ -395,7 +494,7 @@ class NBAStatsGetter():
 ############################
     # Time critical:
     def _todayEntryPointURL(self):
-        return self._addBaseURL("/15m/prod/v1/today.json")
+        return self._addBaseURL('/15m/prod/v1/today.json')
 
     def _scoreboardURL(self):
         return self._addBaseURL(self._todayJSONLink('todayScoreboard'))
@@ -434,6 +533,12 @@ class NBAStatsGetter():
         path = self._15MinMaxAgeLink(self._todayJSONLink('leagueDivStandings'))
         return self._addBaseURL(path)
 
+    def _playoffBracketEndPointExists(self):
+        return ('playoffsBracket' in self._todayJSON()['links'])
+
+    def _playoffBracketURL(self):
+        path = self._15MinMaxAgeLink(self._todayJSONLink('playoffsBracket'))
+        return self._addBaseURL(path)
 
 ############################
 # API entry point
@@ -447,10 +552,14 @@ class NBAStatsGetter():
 ############################
 ############################
     def _getJSON(self, url, return_cache_status=False):
-        """Get the JSON content of a given URL. If the return_cache_status is
-        set to True, returns a tuple: (cache_status, json content).
-        Cache_status indicates whether the content was stored in the cache,
-        and thus whether local copy of its interpretation is still valid."""
+        """Get the JSON content of a given URL.
+        If the return_cache_status is set to True, returns a tuple:
+        (cache_status, json content).
+
+        Cache_status indicates whether the content was stored in the
+        cache, and thus whether local copy of its interpretation is
+        still valid.
+        """
         user_agent = 'Mozilla/5.0 \
                       (X11; Ubuntu; Linux x86_64; rv:45.0) \
                       Gecko/20100101 Firefox/45.0'
@@ -479,8 +588,9 @@ class NBAStatsGetter():
         return json
 
     def _fetchTeamStandingsEntry(self, team_id):
-        """Return the entry describing a team standing's information for a
-        given team id."""
+        """Return the entry describing a team standing's information
+        for a given team id.
+        """
         url = self._standingsURL()
         json = self._getJSON(url)['league']['standard']['teams']
 

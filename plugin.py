@@ -1,7 +1,7 @@
 ###
 # Limnoria plugin to retrieve statistics from NBA.com using their
 # (undocumented) JSON API.
-# Copyright (c) 2016, Santiago Gil
+# Copyright (c) 2017, Santiago Gil
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -125,12 +125,13 @@ class NBAStats(callbacks.Plugin):
             display_west = conference is None or conference == 'west'
             display_east = conference is None or conference == 'east'
 
-            if display_west:
-                standings_west = self._printableStandings(standings['west'])
-                irc.reply('{}: {}'.format(self._bold('WEST'), standings_west))
             if display_east:
                 standings_east = self._printableStandings(standings['east'])
                 irc.reply('{}: {}'.format(self._bold('EAST'), standings_east))
+
+            if display_west:
+                standings_west = self._printableStandings(standings['west'])
+                irc.reply('{}: {}'.format(self._bold('WEST'), standings_west))
             return
 
         # Argument is a division:
@@ -148,6 +149,41 @@ class NBAStats(callbacks.Plugin):
 
     standings = wrap(standings, [optional('text')])
 
+
+    def playoffs(self, irc, msg, args, round_number):
+        """[<round number>]
+
+        Get the playoff bracket for a given round (1-4). If none is
+        specified, returns the current round.
+        """
+        current_round = self._stats_getter.currentPlayoffRound()
+
+        if current_round is None:
+            irc.error('Playoffs are not in progress.')
+            return
+
+        if round_number is not None and round_number not in range(1, 5):
+            irc.error('{} is not a valid round number '
+                      '([1,4])'.format(round_number))
+            return
+
+        if round_number is None:
+            round_number = current_round
+
+        round_games = self._stats_getter.playoffMatchUps(round_number)
+
+        if not round_games:
+            irc.reply('Round {} is not yet determined.'.format(round_number))
+            return
+
+        for conference, match_ups in round_games.items():
+            title = self._printablePlayoffRoundTitle(round_number, conference)
+            irc.reply('{}: {}'.format(self._bold(title),
+                                      self._printablePlayoffBracket(match_ups)))
+
+    playoffs = wrap(playoffs, [optional('int')])
+
+
 ############################
 ############################
     def _isTriCodeValid(self, ttt):
@@ -163,7 +199,8 @@ class NBAStats(callbacks.Plugin):
     def _teamRecordToString(self, record):
         """Given the JSON entry for a team record, extract the relevant
         information, pertaining to the team's record, and return it in a
-        printable form."""
+        printable form.
+        """
         total = self._formatWinsLosses(record['total'])
         home = self._formatWinsLosses(record['home'])
         away = self._formatWinsLosses(record['away'])
@@ -190,11 +227,52 @@ class NBAStats(callbacks.Plugin):
             stat = self._printableStat(leader.category, leader.value)
 
             leaders.append("{} {}".format(name, stat))
-        return " | ".join(leaders)
+        return ' | '.join(leaders)
+
+    def _printablePlayoffBracket(self, games):
+        if len(games) == 0:
+            return 'Is not yet determined'
+
+        output = list()
+        for game in games:
+            output.append(self._playoffMatchUpToString(game))
+
+        return ' | '.join(output)
+
+    def _playoffMatchUpToString(self, m):
+        """Given a PlayoffGame NamedTuple, format its information into
+        a string.
+        """
+        if m.is_completed:
+            top_team = self._green(top_team) if m.top_is_winner \
+                       else self._red(top_team)
+
+            bottom_team = self._green(bottom_team) if m.bottom_is_winner \
+                       else self._red(bottom_team)
+
+        teams = '{}.{} {} - {}.{} {}'.format(m.top_seed, self._bold(m.top_team),
+                                             m.top_wins, m.bottom_seed,
+                                             self._bold(m.bottom_team),
+                                             m.bottom_wins)
+
+        return teams
+
+    def _printablePlayoffRoundTitle(self, round_number, conference):
+        conference = conference.upper()
+        if round_number == 1:
+            return '1st ROUND {}'.format(conference)
+        if round_number == 2:
+            return '{} SEMIFINALS'.format(conference)
+        if round_number == 3:
+            return '{} FINALS'.format(conference)
+        if round_number == 4:
+            return 'FINALS'
+
 
     def _printableTeamLeaders(self, leaders):
         """Given the JSON entry from the Scoreboard, extract the game leaders
-        for each team and return them in a printable form."""
+        for each team and return them in a printable form.
+        """
         home_team_name = self._highlightHomeTeam(leaders['home']['team_name'])
         away_team_name = self._highlightAwayTeam(leaders['away']['team_name'])
 
@@ -211,7 +289,8 @@ class NBAStats(callbacks.Plugin):
     def _gameLeadersToString(self, leaders, home):
         """Given a list of triples containing a type of stat.,
         a list of player ids and a value, return the information in
-        a printable form."""
+        a printable form.
+        """
         stats = []
         for entry in leaders:
             category_name = self._shortCategoryName(entry.category)
@@ -268,7 +347,8 @@ class NBAStats(callbacks.Plugin):
 
     def _playerShortName(self, name_tuple):
         """ Given a tuple (FirstName, LastName), return 'I. LastName',
-        where 'I' is the first name initial."""
+        where 'I' is the first-name's initial.
+        """
         initial = name_tuple.first_name[0]
         last_name = name_tuple.last_name
         return "{}. {}".format(initial, last_name)
@@ -297,7 +377,8 @@ class NBAStats(callbacks.Plugin):
 
     def _formatConferenceRank(self, rank):
         """Return the rank ordinal. If the team is 8th or better
-        (in playoffs), format it  green. Otherwise, red."""
+        (in playoffs), format it  green. Otherwise, red.
+        """
         rank_string = self._numberToOrdinal(rank)
         if rank <= 8: # In the playoffs!
             return self._green(rank_string)
