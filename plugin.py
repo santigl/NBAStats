@@ -248,7 +248,7 @@ class NBAStats(callbacks.Plugin):
                        else self._red(top_team)
 
             bottom_team = self._green(bottom_team) if m.bottom_is_winner \
-                       else self._red(bottom_team)
+                          else self._red(bottom_team)
 
         teams = '{}.{} {} - {}.{} {}'.format(m.top_seed, self._bold(m.top_team),
                                              m.top_wins, m.bottom_seed,
@@ -297,8 +297,8 @@ class NBAStats(callbacks.Plugin):
             player_list = ", ".join([self._playerShortName(p) \
                                      for p in entry.players])
             stat_value = "{} {}".format(entry.value, category_name)
-            stat_string = self._highlightHomeTeam(entry.value) if home \
-                          else self._highlightAwayTeam(entry.value)
+            stat_string = self._highlightHomeTeam(stat_value) if home \
+                          else self._highlightAwayTeam(stat_value)
 
             stats.append("{} {}".format(player_list, stat_string))
 
