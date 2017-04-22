@@ -41,6 +41,7 @@ class NBAStats(callbacks.Plugin):
         self.__parent.__init__(irc)
 
         self._stats_getter = nbastats.NBAStatsGetter()
+        self._irc = irc
 
 ############################
 # Public commands
@@ -50,8 +51,7 @@ class NBAStats(callbacks.Plugin):
 
         Get the team's current leaders."""
         team = team.upper()
-        if not self._isTriCodeValid(team):
-            irc.error("I could not find a team with that code")
+        if not self._validateTeamIsValid(team):
             return
 
         team_leaders = self._stats_getter.teamLeaders(team)
@@ -67,8 +67,7 @@ class NBAStats(callbacks.Plugin):
 
         Get the team's record for this season."""
         team = team.upper()
-        if not self._isTriCodeValid(team):
-            irc.error("I could not find a team with that code")
+        if not self._validateTeamIsValid(team):
             return
 
         team_record = self._stats_getter.teamRecord(team)
@@ -84,12 +83,7 @@ class NBAStats(callbacks.Plugin):
 
         Get the game leaders for a team that has a game in progress."""
         team = team.upper()
-        if not self._isTriCodeValid(team):
-            irc.error("I could not find a team with that code")
-            return
-
-        if not self._stats_getter.isTeamPlaying(team):
-            irc.error("{} is not currently playing".format(team))
+        if not self._validateTeamIsPlaying(team):
             return
 
         leaders = self._stats_getter.gameLeaders(team)
@@ -116,12 +110,7 @@ class NBAStats(callbacks.Plugin):
         Get the list of players on the court during a game
         in progress."""
         team = team.upper()
-        if not self._isTriCodeValid(team):
-            irc.error("I could not find a team with that code")
-            return
-
-        if not self._stats_getter.isTeamPlaying(team):
-            irc.error("{} is not currently playing".format(team))
+        if not self._validateTeamIsPlaying(team):
             return
 
         players_on_court = self._stats_getter.gamePlayersOnCourt(team)
@@ -145,7 +134,7 @@ class NBAStats(callbacks.Plugin):
         away_players_names = ', '.join(away_players)
 
         reply = '{}: {} | {}: {}'.format(home_team_name, home_players_names,
-                                          away_team_name, away_players_names)
+                                         away_team_name, away_players_names)
         irc.reply(reply)
 
     oncourt = wrap(onCourt, [('text')])
@@ -156,12 +145,7 @@ class NBAStats(callbacks.Plugin):
         Get the number of personal fouls for the players of a team
         with a game in progress."""
         team = team.upper()
-        if not self._isTriCodeValid(team):
-            irc.error("I could not find a team with that code")
-            return
-
-        if not self._stats_getter.isTeamPlaying(team):
-            irc.error("{} is not currently playing".format(team))
+        if not self._validateTeamIsPlaying(team):
             return
 
         fouls = self._stats_getter.gamePlayersFouls(team)
@@ -256,6 +240,20 @@ class NBAStats(callbacks.Plugin):
 
     def _isDivisionValid(self, division):
         return (division.lower() in self._stats_getter.divisions())
+
+    def _validateTeamIsValid(self, team):
+        if not self._isTriCodeValid(team):
+            self._irc.irc.error("I could not find a team with that code")
+            return False
+        return True
+
+    def _validateTeamIsPlaying(self, team):
+        if not self._validateTeamIsValid(team):
+            return False
+        elif not self._stats_getter.isTeamPlaying(team):
+            self._irc.irc.error("{} is not currently playing".format(team))
+            return False
+        return True
 
 
 ############################
