@@ -91,8 +91,7 @@ class NBAStats(callbacks.Plugin):
         home_team_name = self._orange(leaders['home']['team_name'])
         away_team_name = self._blue(leaders['away']['team_name'])
 
-        final_flag = ircutils.mircColor('(Final) ', 'red') \
-                     if leaders['final'] else ""
+        final_flag = self._red('(Final)') if leaders['final'] else ''
 
         title = self._bold("{} @ {} Leaders {}~  ".format(away_team_name,
                                                           home_team_name,
@@ -126,15 +125,15 @@ class NBAStats(callbacks.Plugin):
 
         if not home_players and not away_players:
             irc.reply('{} @ {}: There are no players on the court right now'
-                      '.'.format(home_team_name, away_team_name))
+                      '.'.format(away_team_name, home_team_name))
             return
 
 
         home_players_names = ', '.join(home_players)
         away_players_names = ', '.join(away_players)
 
-        reply = '{}: {} | {}: {}'.format(home_team_name, home_players_names,
-                                         away_team_name, away_players_names)
+        reply = '{}: {} | {}: {}'.format(away_team_name, away_players_names,
+                                         home_team_name, home_players_names)
         irc.reply(reply)
 
     oncourt = wrap(onCourt, [('text')])
@@ -151,7 +150,7 @@ class NBAStats(callbacks.Plugin):
         fouls = self._stats_getter.gamePlayersFouls(team)
         fouls_string = self._playersFoulsToString(fouls)
 
-        title = self._bold('{} FOULS'.format(team))
+        title = self._bold('{} Fouls'.format(team))
 
         reply = '{}: {}'.format(title, fouls_string)
         irc.reply(reply)
@@ -243,7 +242,7 @@ class NBAStats(callbacks.Plugin):
 
     def _validateTeamIsValid(self, team):
         if not self._isTriCodeValid(team):
-            self._irc.irc.error("I could not find a team with that code")
+            self._irc.error('I could not find a team with that code')
             return False
         return True
 
@@ -251,7 +250,7 @@ class NBAStats(callbacks.Plugin):
         if not self._validateTeamIsValid(team):
             return False
         elif not self._stats_getter.isTeamPlaying(team):
-            self._irc.irc.error("{} is not currently playing".format(team))
+            self._irc.error('{} is not currently playing'.format(team))
             return False
         return True
 
@@ -384,6 +383,9 @@ class NBAStats(callbacks.Plugin):
                 fouls_string = self._red(fouls_string)
 
             items.append(fouls_string)
+
+        if len(items) == 0:
+            return 'No fouls'
 
         return ' | '.join(items)
 
