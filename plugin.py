@@ -349,6 +349,9 @@ class NBAStats(callbacks.Plugin):
         """ Given a tuple (FirstName, LastName), return 'I. LastName',
         where 'I' is the first-name's initial.
         """
+        if not name_tuple.last_name: # 'Nenê' special case
+            return name_tuple.first_name
+
         initial = name_tuple.first_name[0]
         last_name = name_tuple.last_name
         return "{}. {}".format(initial, last_name)
