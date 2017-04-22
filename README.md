@@ -21,3 +21,7 @@ A [Limnoria](https://github.com/ProgVal/Limnoria) plugin to retrieve NBA stats f
 ![standings](https://cloud.githubusercontent.com/assets/11447309/24166898/9fede9a2-0e53-11e7-8b93-fff785683c18.png)
 #### By division
 ![division-standings](https://cloud.githubusercontent.com/assets/11447309/24166899/9feefce8-0e53-11e7-885f-b1a0f4db4ce3.png)
+
+### Games in progress
+#### Fouls
+![fouls](https://cloud.githubusercontent.com/assets/11447309/25305851/44b3fbac-2759-11e7-904e-8425766c04a7.png)
