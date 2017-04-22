@@ -128,12 +128,18 @@ class NBAStats(callbacks.Plugin):
                       '.'.format(away_team_name, home_team_name))
             return
 
-
         home_players_names = ', '.join(home_players)
         away_players_names = ', '.join(away_players)
 
-        reply = '{}: {} | {}: {}'.format(away_team_name, away_players_names,
-                                         home_team_name, home_players_names)
+        # Display the team given as an argument first:
+        if team == players_on_court['away']['team_name']:
+            data = [away_team_name, away_players_names,
+                    home_team_name, home_players_names]
+        else:
+            data = [home_team_name, home_players_names,
+                    away_team_name, away_players_names]
+
+        reply = '{}: {} | {}: {}'.format(*data)
         irc.reply(reply)
 
     oncourt = wrap(onCourt, [('text')])
