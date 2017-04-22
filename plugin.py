@@ -110,6 +110,48 @@ class NBAStats(callbacks.Plugin):
 
     gameleaders = wrap(gameLeaders, [('text')])
 
+    def onCourt(self, irc, msg, args, team):
+        """<TTT> (team tri-code)
+
+        Get the list of players on the court during a game
+        in progress."""
+        team = team.upper()
+        if not self._isTriCodeValid(team):
+            irc.error("I could not find a team with that code")
+            return
+
+        if not self._stats_getter.isTeamPlaying(team):
+            irc.error("{} is not currently playing".format(team))
+            return
+
+        players_on_court = self._stats_getter.gamePlayersOnCourt(team)
+
+        home_team_name = players_on_court['home']['team_name']
+        away_team_name = players_on_court['away']['team_name']
+
+        home_players = [self._playerShortName(p) for p
+                        in players_on_court['home']['players']]
+
+        away_players = [self._playerShortName(p) for p
+                        in players_on_court['away']['players']]
+
+        if not home_players and not away_players:
+            irc.reply('{}@{}: '
+                      'There are no players on the court right now'
+                      '.'.format(self._bold(home_team_name, away_team_name)))
+
+
+        home_players_names = ', '.join(home_players)
+        away_players_names = ', '.join(away_players)
+
+        reply = '{}: {} | {}: {}'.format(self._bold(home_team_name),
+                                          home_players_names,
+                                          self._bold(away_team_name),
+                                          away_players_names)
+        irc.reply(reply)
+
+    oncourt = wrap(onCourt, [('text')])
+
     def standings(self, irc, msg, args, category):
         """[<conference/division>]
 

@@ -136,6 +136,28 @@ class NBAStatsGetter():
 
         return leaders
 
+    def gamePlayersOnCourt(self, team):
+        """Return the players currently on the court for a game
+        in progress involving a team.
+
+        (If there is no game in progress with the given team,
+        throws a ValueError.)
+        """
+        team = self._parseTeamTricode(team)
+
+        team_id = self._teamID(team)
+        game = self._findGameInProgress(team_id)
+
+        if game is None:
+            raise ValueError('{} is not currently playing'.format(team))
+
+        box_score = self._fetchGameBoxScore(game['start_date'], game['game_id'])
+
+        players_on_court = self._extractPlayersOnCourtFromBoxScore(box_score)
+
+        return players_on_court
+
+
     def gameTextNugget(self, team):
         """Find the 'text nugget' (a string containing the description
         of a highlight of the game) for a game that involves the
@@ -278,6 +300,34 @@ class NBAStatsGetter():
         leaders['away']['leaders'] = away_leaders
 
         return leaders
+
+    def _extractPlayersOnCourtFromBoxScore(self, json):
+        res = dict()
+        res['home'] = dict()
+        res['away'] = dict()
+
+        res['home']['team_name'] = json['basicGameData']['hTeam']['triCode']
+        res['away']['team_name'] = json['basicGameData']['vTeam']['triCode']
+        res['home']['players'] = []
+        res['away']['players'] = []
+
+        home_team_id      = json['basicGameData']['hTeam']['teamId']
+        away_team_id      = json['basicGameData']['vTeam']['teamId']
+        active_players    = json['stats']['activePlayers']
+
+        for p in active_players:
+            if not p['isOnCourt']:
+                continue
+
+            player_name = self.playerFullName(p['personId'])
+
+            if p['teamId'] == home_team_id:
+                res['home']['players'].append(player_name)
+            else:
+                res['away']['players'].append(player_name)
+
+        return res
+
 
     def _extractGameLeadersStats(self, json):
         leaders = []
@@ -520,8 +570,7 @@ class NBAStatsGetter():
         return self._addBaseURL(path)
 
     def _scoreBoxURL(self, starting_date, game_id):
-        json_path = self._15MinMaxAgeLink(self._todayJSONLink('boxscore'))
-        json_path = self._doubleBracketToSingle(json_path)
+        json_path = self._doubleBracketToSingle(self._todayJSONLink('boxscore'))
         json_path = json_path.format(gameDate=starting_date, gameId=game_id)
         return self._addBaseURL(json_path)
 
@@ -621,7 +670,8 @@ def test():
     print('-'*60)
     print('LAL leaders:', n.teamLeaders('LAL'))
     print('-'*60)
-    print(n.gameLeaders('LAL'))
+    # print(n.gameLeaders('LAL'))
+    # print(n.gamePlayersOnCourt('HOU'))
 
 if __name__ == "__main__":
     test()
