@@ -157,6 +157,27 @@ class NBAStatsGetter():
 
         return players_on_court
 
+    def gamePlayersFouls(self, team):
+        """Given a team with a game in progress, return tne number of
+        personal fouls for each team member.
+
+        (If there is no game in progress with the given team,
+        throws a ValueError.)
+        """
+        team = self._parseTeamTricode(team)
+
+        team_id = self._teamID(team)
+        game = self._findGameInProgress(team_id)
+
+        if game is None:
+            raise ValueError('{} is not currently playing'.format(team))
+
+        box_score = self._fetchGameBoxScore(game['start_date'], game['game_id'])
+
+        fouls = self._extractPlayersFouls(box_score, team_id)
+
+        return fouls
+
 
     def gameTextNugget(self, team):
         """Find the 'text nugget' (a string containing the description
@@ -327,6 +348,22 @@ class NBAStatsGetter():
                 res['away']['players'].append(player_name)
 
         return res
+
+
+    def _extractPlayersFouls(self, json, team_id):
+        players_fouls = defaultdict(set)
+        active_players = json['stats']['activePlayers']
+
+        for p in active_players:
+            if not p['teamId'] == team_id:
+                continue
+
+            player_name = self.playerFullName(p['personId'])
+            personal_fouls = int(p['pFouls']) if p['pFouls'] else 0
+
+            players_fouls[personal_fouls].add(player_name)
+
+        return players_fouls
 
 
     def _extractGameLeadersStats(self, json):
@@ -672,6 +709,7 @@ def test():
     print('-'*60)
     # print(n.gameLeaders('LAL'))
     # print(n.gamePlayersOnCourt('HOU'))
+    print(n.gamePlayersFouls('HOU'))
 
 if __name__ == "__main__":
     test()

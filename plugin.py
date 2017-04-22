@@ -126,8 +126,8 @@ class NBAStats(callbacks.Plugin):
 
         players_on_court = self._stats_getter.gamePlayersOnCourt(team)
 
-        home_team_name = players_on_court['home']['team_name']
-        away_team_name = players_on_court['away']['team_name']
+        home_team_name = self._bold(players_on_court['home']['team_name'])
+        away_team_name = self._bold(players_on_court['away']['team_name'])
 
         home_players = [self._playerShortName(p) for p
                         in players_on_court['home']['players']]
@@ -136,21 +136,44 @@ class NBAStats(callbacks.Plugin):
                         in players_on_court['away']['players']]
 
         if not home_players and not away_players:
-            irc.reply('{}@{}: '
-                      'There are no players on the court right now'
-                      '.'.format(self._bold(home_team_name, away_team_name)))
+            irc.reply('{} @ {}: There are no players on the court right now'
+                      '.'.format(home_team_name, away_team_name))
+            return
 
 
         home_players_names = ', '.join(home_players)
         away_players_names = ', '.join(away_players)
 
-        reply = '{}: {} | {}: {}'.format(self._bold(home_team_name),
-                                          home_players_names,
-                                          self._bold(away_team_name),
-                                          away_players_names)
+        reply = '{}: {} | {}: {}'.format(home_team_name, home_players_names,
+                                          away_team_name, away_players_names)
         irc.reply(reply)
 
     oncourt = wrap(onCourt, [('text')])
+
+    def getFouls(self, irc, msg, args, team):
+        """<TTT> (team tri-code)
+
+        Get the number of personal fouls for the players of a team
+        with a game in progress."""
+        team = team.upper()
+        if not self._isTriCodeValid(team):
+            irc.error("I could not find a team with that code")
+            return
+
+        if not self._stats_getter.isTeamPlaying(team):
+            irc.error("{} is not currently playing".format(team))
+            return
+
+        fouls = self._stats_getter.gamePlayersFouls(team)
+        fouls_string = self._playersFoulsToString(fouls)
+
+        title = self._bold('{} FOULS'.format(team))
+
+        reply = '{}: {}'.format(title, fouls_string)
+        irc.reply(reply)
+
+
+    fouls = wrap(getFouls, [('text')])
 
     def standings(self, irc, msg, args, category):
         """[<conference/division>]
@@ -345,6 +368,26 @@ class NBAStats(callbacks.Plugin):
             stats.append("{} {}".format(player_list, stat_string))
 
         return " | ".join(stats)
+
+    def _playersFoulsToString(self, fouls):
+        items = []
+        for foul_number in sorted(fouls.keys(), reverse=True):
+            if foul_number == 0: # Don't print players without fouls.
+                break
+
+            players = [self._playerShortName(p) for p in fouls[foul_number]]
+
+            fouls_string = '{}: {}'.format(self._bold(foul_number),
+                                           ', '.join(players))
+
+            if foul_number == 5:
+                fouls_string = self._orange(fouls_string)
+            if foul_number == 6:
+                fouls_string = self._red(fouls_string)
+
+            items.append(fouls_string)
+
+        return ' | '.join(items)
 
     def _printableStandings(self, standings):
         items = []
