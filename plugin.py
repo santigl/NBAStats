@@ -91,7 +91,7 @@ class NBAStats(callbacks.Plugin):
         home_team_name = self._orange(leaders['home']['team_name'])
         away_team_name = self._blue(leaders['away']['team_name'])
 
-        final_flag = self._red('(Final)') if leaders['final'] else ''
+        final_flag = self._red('(Final) ') if leaders['final'] else ''
 
         title = self._bold("{} @ {} Leaders {}~  ".format(away_team_name,
                                                           home_team_name,
@@ -168,7 +168,7 @@ class NBAStats(callbacks.Plugin):
         """[<conference/division>]
 
         Get standings for a given conference or division.
-        If none is given, return standings for east and west."""
+        If none is given return standings for east and west."""
 
         conference = category.lower() if category is not None else category
 
@@ -208,7 +208,7 @@ class NBAStats(callbacks.Plugin):
         """[<round number>]
 
         Get the playoff bracket for a given round (1-4). If none is
-        specified, returns the current round.
+        specified returns the current round.
         """
         current_round = self._stats_getter.currentPlayoffRound()
 
@@ -311,6 +311,9 @@ class NBAStats(callbacks.Plugin):
         """Given a PlayoffGame NamedTuple, format its information into
         a string.
         """
+        top_team = self._bold(m.top_team)
+        bottom_team = self._bold(m.bottom_team)
+
         if m.is_completed:
             top_team = self._green(top_team) if m.top_is_winner \
                        else self._red(top_team)
@@ -318,9 +321,11 @@ class NBAStats(callbacks.Plugin):
             bottom_team = self._green(bottom_team) if m.bottom_is_winner \
                           else self._red(bottom_team)
 
-        teams = '{}.{} {} - {}.{} {}'.format(m.top_seed, self._bold(m.top_team),
+
+
+        teams = '{}.{} {} - {}.{} {}'.format(m.top_seed, top_team,
                                              m.top_wins, m.bottom_seed,
-                                             self._bold(m.bottom_team),
+                                             bottom_team,
                                              m.bottom_wins)
 
         return teams
