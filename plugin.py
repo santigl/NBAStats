@@ -321,7 +321,9 @@ class NBAStats(callbacks.Plugin):
             bottom_team = self._green(bottom_team) if m.bottom_is_winner \
                           else self._red(bottom_team)
 
-
+        elif m.top_wins == 3 and m.bottom_wins == 3: # Game 7 alert
+            top_team = self._orange(top_team)
+            bottom_team = self._orange(bottom_team)
 
         teams = '{}.{} {} - {}.{} {}'.format(m.top_seed, top_team,
                                              m.top_wins, m.bottom_seed,
@@ -333,13 +335,13 @@ class NBAStats(callbacks.Plugin):
     def _printablePlayoffRoundTitle(self, round_number, conference):
         conference = conference.upper()
         if round_number == 1:
-            return '1st ROUND {}'.format(conference)
+            return '1st Round {}'.format(conference)
         if round_number == 2:
-            return '{} SEMIFINALS'.format(conference)
+            return '{} Semifinals'.format(conference)
         if round_number == 3:
-            return '{} FINALS'.format(conference)
+            return '{} Finals'.format(conference)
         if round_number == 4:
-            return 'FINALS'
+            return 'Finals'
 
 
     def _printableTeamLeaders(self, leaders):
@@ -404,9 +406,10 @@ class NBAStats(callbacks.Plugin):
         items = []
         for team in standings:
             team_name = self._bold(team['name'])
-            games_behind_string = self._formatGamesBehind(-1*team['games_behind'])
+            games_behind_string = self._formatGamesBehind(-team['games_behind'])
 
-            item = '{}.{} ({})'.format(team['rank'], team_name, games_behind_string)
+            item = '{}.{} ({})'.format(team['rank'], team_name,
+                                       games_behind_string)
             items.append(item)
 
         return ', '.join(items)
