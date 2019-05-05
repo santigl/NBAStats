@@ -311,24 +311,35 @@ class NBAStats(callbacks.Plugin):
         """Given a PlayoffGame NamedTuple, format its information into
         a string.
         """
-        top_team = self._bold(m.top_team)
-        bottom_team = self._bold(m.bottom_team)
+        top_team = m.top_team
+        bottom_team = m.bottom_team
+
+        if m.top_wins > m.bottom_wins:
+            top_team = self._bold(top_team)
+        if m.bottom_wins > m.top_wins:
+            bottom_team = self._bold(bottom_team)
 
         if m.is_completed:
-            top_team = self._green(top_team) if m.top_is_winner \
-                       else self._red(top_team)
+            top_team = self._green(m.top_team) if m.top_is_winner \
+                         else self._red(m.top_team)
 
-            bottom_team = self._green(bottom_team) if m.bottom_is_winner \
-                          else self._red(bottom_team)
+            bottom_team = self._green(m.bottom_team) if m.bottom_is_winner \
+                            else self._red(m.bottom_team)
 
         elif m.top_wins == 3 and m.bottom_wins == 3: # Game 7 alert
-            top_team = self._orange(top_team)
-            bottom_team = self._orange(bottom_team)
+            top_team = self._orange(m.top_team)
+            bottom_team = self._orange(m.bottom_team)
 
-        teams = '{}.{} {} - {}.{} {}'.format(m.top_seed, top_team,
-                                             m.top_wins, m.bottom_seed,
-                                             bottom_team,
-                                             m.bottom_wins)
+        top_wins = str(m.top_wins)
+        bottom_wins = str(m.bottom_wins)
+        if m.top_wins > m.bottom_wins:
+            top_wins = self._bold(m.top_wins)
+        if m.bottom_wins > m.top_wins:
+            bottom_wins = self._bold(m.bottom_wins)
+
+        teams = '{} {} - {} {} ({}-{})'.format(top_team, top_wins,
+                                               bottom_team, bottom_wins,
+                                               m.top_seed, m.bottom_seed)
 
         return teams
 
